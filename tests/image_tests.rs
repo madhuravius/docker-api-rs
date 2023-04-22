@@ -4,6 +4,7 @@ use common::{
     create_base_image, get_image_full_id, init_runtime, opts, tempdir_with_dockerfile, StreamExt,
     TryStreamExt, DEFAULT_IMAGE,
 };
+use docker_api::opts::{ImageSearchFilter, ImageSearchOpts};
 
 #[tokio::test]
 async fn image_create_inspect_delete() {
@@ -135,7 +136,16 @@ async fn image_search() {
     let docker = init_runtime();
     let images = docker.images();
 
-    let search_result = images.search("ubuntu").await;
+    let search_result = images.search(&ImageSearchOpts::builder()
+        .term("ubuntu")
+        .limit(100)
+        .filter([
+            ImageSearchFilter::Stars(100),
+            ImageSearchFilter::IsAutomated(false),
+            ImageSearchFilter::IsOfficial(true)
+        ])
+        .build())
+        .await;
     println!("{search_result:#?}");
     assert!(search_result.is_ok());
     //let search_data = search_result.unwrap();

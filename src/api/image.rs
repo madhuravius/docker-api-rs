@@ -15,8 +15,9 @@ use futures_util::{stream::Stream, TryFutureExt, TryStreamExt};
 use containers_api::{
     conn::{Headers, Payload, AUTH_HEADER},
     tarball,
-    url::{construct_ep, encoded_pair, encoded_pairs},
+    url::{construct_ep, encoded_pairs},
 };
+use crate::opts::ImageSearchOpts;
 
 use crate::Result;
 
@@ -175,15 +176,13 @@ impl Images {
     api_doc! { Image => Search
     |
     /// Search for docker images by term.
-    pub async fn search<T>(&self, term: T) -> Result<models::ImageSearch200Response>
-    where
-        T: AsRef<str>,
+    pub async fn search(&self, opts: &ImageSearchOpts) -> Result<models::ImageSearch200Response>
     {
         self.docker
             .get_json(&construct_ep(
                 "/images/search",
-                Some(encoded_pair("term", term.as_ref())),
-            ))
+                opts.serialize()),
+            )
             .await
     }}
 

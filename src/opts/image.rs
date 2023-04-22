@@ -1,9 +1,6 @@
 use containers_api::opts::{Filter, FilterItem};
 use containers_api::url::encoded_pairs;
-use containers_api::{
-    impl_filter_func, impl_map_field, impl_opts_builder, impl_str_field, impl_url_bool_field,
-    impl_url_field, impl_url_str_field,
-};
+use containers_api::{impl_field, impl_filter_func, impl_map_field, impl_opts_builder, impl_str_field, impl_url_bool_field, impl_url_field, impl_url_str_field};
 
 use std::{
     collections::HashMap,
@@ -616,6 +613,108 @@ impl ImagePushOptsBuilder {
         }
     }
 }
+
+
+#[derive(Serialize, Debug, Default)]
+pub struct ImageSearchOpts {
+    params: HashMap<&'static str, serde_json::Value>,
+}
+
+impl ImageSearchOpts {
+    pub fn builder() -> ImageSearchOptsBuilder {
+        ImageSearchOptsBuilder::default()
+    }
+
+    pub fn serialize(&self) -> Option<String> {
+        if self.params.is_empty() {
+            None
+        } else {
+            Some(encoded_pairs(
+                self.params
+                    .iter()
+                    .map(|(k, v)| {
+                        if v.is_string() {
+                            return (k, v.as_str().unwrap_or_default().to_string())
+                        } else if v.is_u64() {
+                            return (k, v.as_u64().unwrap_or_default().to_string())
+                        } else if v.is_boolean() {
+                            return (k, v.as_bool().unwrap_or_default().to_string())
+                        }
+                        return (k, v.as_str().unwrap_or_default().to_string())
+                    }),
+            ))
+        }
+    }
+}
+
+pub enum ImageSearchFilter {
+    /// Filter results to those with a minimum star count
+    Stars(u64),
+    /// Limit results to those that are official only
+    IsOfficial(bool),
+    /// Limit results to those that are automated
+    IsAutomated(bool),
+}
+
+impl Filter for ImageSearchFilter {
+    fn query_item(&self) -> FilterItem {
+        use ImageSearchFilter::*;
+        match &self {
+            Stars(val) => FilterItem::new("stars", val.to_string()),
+            IsOfficial(val) => FilterItem::new("is-official", val.to_string()),
+            IsAutomated(val) => FilterItem::new("is-automated", val.to_string()),
+        }
+    }
+}
+
+#[derive(Serialize, Debug, Default)]
+pub struct ImageSearchOptsBuilder {
+    params: HashMap<&'static str, serde_json::Value>,
+}
+
+#[macro_export]
+macro_rules! impl_filter_patched_func {
+    ($(#[doc = $doc:expr])* $filter_ty:ident) => {
+        $(
+            #[doc = $doc]
+        )*
+        pub fn filter(mut self, filters: impl IntoIterator<Item = $filter_ty>) -> Self
+        {
+            let mut param = std::collections::BTreeMap::new();
+            for filter_item in filters.into_iter().map(|f| f.query_item()) {
+                let key = filter_item.key();
+                let entry_vec = param.entry(key).or_insert(Vec::new());
+                entry_vec.push(filter_item.to_string());
+            }
+            // structure is a a json encoded object mapping string keys to a list
+            // of string values
+            self.params
+                .insert("filters", serde_json::Value::String(serde_json::to_string(&param).unwrap_or_default()));
+            self
+        }
+    };
+}
+
+impl ImageSearchOptsBuilder {
+    impl_filter_patched_func!(ImageSearchFilter);
+
+    impl_str_field!(
+    /// Term to filter on when conducting a search
+        term => "term"
+    );
+
+    impl_field!(
+    /// Limit number of results from API based on this field, with a maximum of 100
+        limit: u64 => "limit"
+    );
+
+    pub fn build(self) -> ImageSearchOpts {
+        ImageSearchOpts {
+            params: self.params,
+        }
+    }
+}
+
 
 #[cfg(test)]
 mod tests {

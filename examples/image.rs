@@ -3,6 +3,7 @@ use clap::Parser;
 use common::new_docker;
 use futures::StreamExt;
 use std::path::PathBuf;
+use docker_api::opts::ImageSearchOpts;
 
 #[derive(Parser)]
 pub struct Opts {
@@ -231,7 +232,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         Cmd::Search { image } => {
-            match docker.images().search(image).await {
+            match docker.images().search(&ImageSearchOpts::builder().term(image).build()).await {
                 Ok(results) => {
                     for result in results {
                         println!(
